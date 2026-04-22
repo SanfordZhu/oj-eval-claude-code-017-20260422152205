@@ -1,7 +1,6 @@
 #include <cstdio>
 #include <cstring>
 #include <cstdlib>
-#include <ctime>
 
 using namespace std;
 
@@ -9,34 +8,10 @@ const int MAX_USERS = 200000;
 const int MAX_TRAINS = 200000;
 const int MAX_STATIONS = 100;
 const int MAX_ORDERS = 200000;
-const int MAX_STATION_NAMES = 10000;
-const int MAX_STATION_NAME_LEN = 20;
 const int MAX_DATE_DAYS = 92;
-const int SEAT_BLOCK_SIZE = 100;
 
 int date_to_int(int month, int day) {
     return (month - 6) * 31 + (day - 1);
-}
-
-void int_to_date(int d, int &month, int &day) {
-    month = 6 + d / 31;
-    day = d % 31 + 1;
-}
-
-int time_to_minutes(int hour, int minute) {
-    return hour * 60 + minute;
-}
-
-void minutes_to_time(int minutes, int &hour, int &minute) {
-    hour = (minutes / 60) % 24;
-    minute = minutes % 60;
-}
-
-void add_minutes(int &day, int &hour, int &minute, int add) {
-    int total = day * 24 * 60 + hour * 60 + minute + add;
-    day = total / (24 * 60);
-    hour = (total / 60) % 24;
-    minute = total % 60;
 }
 
 struct User {
@@ -52,7 +27,6 @@ struct User {
 User users[MAX_USERS];
 int user_head[MAX_USERS];
 int user_count = 0;
-int logged_in_count = 0;
 
 unsigned int hash_string(const char *str) {
     unsigned int hash = 5381;
@@ -103,7 +77,6 @@ bool login(const char *username, const char *password) {
     if (idx == -1 || users[idx].online) return false;
     if (strcmp(users[idx].password, password) != 0) return false;
     users[idx].online = true;
-    logged_in_count++;
     return true;
 }
 
@@ -111,7 +84,6 @@ bool logout(const char *username) {
     int idx = find_user(username);
     if (idx == -1 || !users[idx].online) return false;
     users[idx].online = false;
-    logged_in_count--;
     return true;
 }
 
@@ -178,7 +150,7 @@ bool add_train(const char *trainID, int stationNum, int seatNum,
 
     int hour, minute;
     sscanf(startTime_str, "%d:%d", &hour, &minute);
-    trains[new_idx].startTime = time_to_minutes(hour, minute);
+    trains[new_idx].startTime = hour * 60 + minute;
 
     strcpy(temp, travelTimes_str);
     token = strtok(temp, "|");
@@ -258,7 +230,6 @@ int order_count = 0;
 
 void add_order(const char *username, const char *trainID, const char *from,
                const char *to, int date, int depTime, int arrTime, int price, int num, int status) {
-    int user_idx = find_user(username);
     unsigned int hash_idx = hash_string(username) % MAX_USERS;
 
     int new_idx = order_count++;
@@ -300,7 +271,6 @@ int pending_count = 0;
 
 void add_pending(const char *username, const char *trainID, const char *from,
                  const char *to, int date, int num) {
-    int train_idx = find_train(trainID);
     unsigned int hash_idx = hash_string(trainID) % MAX_TRAINS;
 
     int new_idx = pending_count++;
@@ -346,12 +316,11 @@ void process_pending(const char *trainID) {
     if (train_idx == -1) return;
 
     unsigned int hash_idx = hash_string(trainID) % MAX_TRAINS;
-    int *p = &pending_head[hash_idx];
     bool changed = true;
 
     while (changed) {
         changed = false;
-        p = &pending_head[hash_idx];
+        int *p = &pending_head[hash_idx];
         while (*p != -1) {
             int cur = *p;
             Train &train = trains[train_idx];
@@ -365,7 +334,6 @@ void process_pending(const char *trainID) {
                 update_seats(train, dateIdx, fromIdx, toIdx, -pending_orders[cur].num);
 
                 int price = train.prices[toIdx] - train.prices[fromIdx];
-                int depDay = pending_orders[cur].date;
                 int depMin = train.startTime;
                 for (int i = 0; i < fromIdx; i++) {
                     depMin += train.travelTimes[i];
@@ -409,32 +377,25 @@ void query_train_output(const char *trainID, int date) {
 
     int curTime = train.startTime;
     for (int i = 0; i < train.stationNum; i++) {
-        int arrDay = date, arrHour, arrMinute;
-        int leaveDay = date, leaveHour, leaveMinute;
-
         if (i == 0) {
             printf("%s xx-xx xx:xx -> ", train.stations[i]);
-            leaveHour = curTime / 60;
-            leaveMinute = curTime % 60;
         } else {
             int arrTime = curTime;
-            arrDay = date + arrTime / (24 * 60);
-            arrHour = (arrTime / 60) % 24;
-            arrMinute = arrTime % 60;
+            int arrDay = date + arrTime / (24 * 60);
+            int arrHour = (arrTime / 60) % 24;
+            int arrMinute = arrTime % 60;
 
             printf("%s %02d-%02d %02d:%02d -> ", train.stations[i], 6 + arrDay/31, arrDay%31+1, arrHour, arrMinute);
 
             if (i < train.stationNum - 1) {
                 curTime += train.stopoverTimes[i-1];
             }
-            leaveHour = curTime / 60;
-            leaveMinute = curTime % 60;
         }
 
         if (i < train.stationNum - 1) {
-            leaveDay = date + curTime / (24 * 60);
-            leaveHour = (curTime / 60) % 24;
-            leaveMinute = curTime % 60;
+            int leaveDay = date + curTime / (24 * 60);
+            int leaveHour = (curTime / 60) % 24;
+            int leaveMinute = curTime % 60;
             printf("%02d-%02d %02d:%02d ", 6 + leaveDay/31, leaveDay%31+1, leaveHour, leaveMinute);
         } else {
             printf("xx-xx xx:xx ");
@@ -595,11 +556,7 @@ void query_transfer(const char *from, const char *to, int date, const char *prio
             }
 
             int arrDay = actualDepDay + arrMin / (24 * 60);
-            int arrHour = (arrMin / 60) % 24;
-            int arrMinute = arrMin % 60;
-
             int transferDay = arrDay;
-            int transferTime = arrMin;
 
             for (int j = 0; j < train_count; j++) {
                 if (i == j || !trains[j].released) continue;
@@ -761,16 +718,16 @@ void query_order(const char *username) {
     }
 
     unsigned int hash_idx = hash_string(username) % MAX_USERS;
-    int count = 0;
-    int order_list[MAX_ORDERS];
 
+    int count = 0;
     for (int i = order_tail[hash_idx]; i != -1; i = orders[i].prev) {
-        order_list[count++] = i;
+        count++;
     }
 
     printf("%d\n", count);
-    for (int i = 0; i < count; i++) {
-        Order &ord = orders[order_list[i]];
+
+    for (int i = order_tail[hash_idx]; i != -1; i = orders[i].prev) {
+        Order &ord = orders[i];
         const char *status_str;
         if (ord.status == 0) status_str = "success";
         else if (ord.status == 1) status_str = "pending";
@@ -797,16 +754,20 @@ int refund_ticket(const char *username, int n) {
     if (user_idx == -1 || !users[user_idx].online) return -1;
 
     unsigned int hash_idx = hash_string(username) % MAX_USERS;
-    int count = 0;
-    int order_list[MAX_ORDERS];
 
+    int count = 0;
+    int target_idx = -1;
     for (int i = order_tail[hash_idx]; i != -1; i = orders[i].prev) {
-        order_list[count++] = i;
+        count++;
+        if (count == n) {
+            target_idx = i;
+            break;
+        }
     }
 
-    if (n < 1 || n > count) return -1;
+    if (n < 1 || target_idx == -1) return -1;
 
-    Order &ord = orders[order_list[n-1]];
+    Order &ord = orders[target_idx];
 
     if (ord.status == 2) return -1;
 
@@ -838,7 +799,6 @@ void clean() {
     }
 
     user_count = 0;
-    logged_in_count = 0;
     train_count = 0;
     order_count = 0;
     pending_count = 0;
