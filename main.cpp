@@ -118,9 +118,11 @@ int find_train(const char *trainID) {
     return -1;
 }
 
-void parse_pipe(char *src, char *dest[], int max) {
+void parse_pipe(const char *src, char *dest[], int max) {
+    char temp[5000];
+    strcpy(temp, src);
     int count = 0;
-    char *p = src;
+    char *p = temp;
     while (*p && count < max) {
         dest[count++] = p;
         while (*p && *p != '|') p++;
@@ -145,16 +147,13 @@ bool add_train(const char *trainID, int stationNum, int seatNum,
     trains[new_idx].type = type;
     trains[new_idx].released = false;
 
-    char temp[5000];
-    strcpy(temp, stations_str);
     char *ptrs[MAX_STATIONS];
-    parse_pipe(temp, ptrs, MAX_STATIONS);
+    parse_pipe(stations_str, ptrs, MAX_STATIONS);
     for (int i = 0; i < stationNum && ptrs[i] != NULL; i++) {
         strcpy(trains[new_idx].stations[i], ptrs[i]);
     }
 
-    strcpy(temp, prices_str);
-    parse_pipe(temp, ptrs, MAX_STATIONS);
+    parse_pipe(prices_str, ptrs, MAX_STATIONS);
     trains[new_idx].prices[0] = 0;
     for (int i = 1; i < stationNum && ptrs[i-1] != NULL; i++) {
         trains[new_idx].prices[i] = trains[new_idx].prices[i-1] + atoi(ptrs[i-1]);
@@ -164,15 +163,13 @@ bool add_train(const char *trainID, int stationNum, int seatNum,
     sscanf(startTime_str, "%d:%d", &hour, &minute);
     trains[new_idx].startTime = hour * 60 + minute;
 
-    strcpy(temp, travelTimes_str);
-    parse_pipe(temp, ptrs, MAX_STATIONS);
+    parse_pipe(travelTimes_str, ptrs, MAX_STATIONS);
     for (int i = 0; i < stationNum - 1 && ptrs[i] != NULL; i++) {
         trains[new_idx].travelTimes[i] = atoi(ptrs[i]);
     }
 
     if (stationNum > 2) {
-        strcpy(temp, stopoverTimes_str);
-        parse_pipe(temp, ptrs, MAX_STATIONS);
+        parse_pipe(stopoverTimes_str, ptrs, MAX_STATIONS);
         for (int i = 0; i < stationNum - 2 && ptrs[i] != NULL; i++) {
             trains[new_idx].stopoverTimes[i] = atoi(ptrs[i]);
         }
