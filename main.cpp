@@ -118,6 +118,19 @@ int find_train(const char *trainID) {
     return -1;
 }
 
+void parse_pipe(char *src, char *dest[], int max) {
+    int count = 0;
+    char *p = src;
+    while (*p && count < max) {
+        dest[count++] = p;
+        while (*p && *p != '|') p++;
+        if (*p == '|') {
+            *p = '\0';
+            p++;
+        }
+    }
+}
+
 bool add_train(const char *trainID, int stationNum, int seatNum,
                const char *stations_str, const char *prices_str,
                const char *startTime_str, const char *travelTimes_str,
@@ -134,18 +147,17 @@ bool add_train(const char *trainID, int stationNum, int seatNum,
 
     char temp[5000];
     strcpy(temp, stations_str);
-    char *token = strtok(temp, "|");
-    for (int i = 0; i < stationNum && token != NULL; i++) {
-        strcpy(trains[new_idx].stations[i], token);
-        token = strtok(NULL, "|");
+    char *ptrs[MAX_STATIONS];
+    parse_pipe(temp, ptrs, MAX_STATIONS);
+    for (int i = 0; i < stationNum && ptrs[i] != NULL; i++) {
+        strcpy(trains[new_idx].stations[i], ptrs[i]);
     }
 
     strcpy(temp, prices_str);
-    token = strtok(temp, "|");
+    parse_pipe(temp, ptrs, MAX_STATIONS);
     trains[new_idx].prices[0] = 0;
-    for (int i = 1; i < stationNum && token != NULL; i++) {
-        trains[new_idx].prices[i] = trains[new_idx].prices[i-1] + atoi(token);
-        token = strtok(NULL, "|");
+    for (int i = 1; i < stationNum && ptrs[i-1] != NULL; i++) {
+        trains[new_idx].prices[i] = trains[new_idx].prices[i-1] + atoi(ptrs[i-1]);
     }
 
     int hour, minute;
@@ -153,18 +165,16 @@ bool add_train(const char *trainID, int stationNum, int seatNum,
     trains[new_idx].startTime = hour * 60 + minute;
 
     strcpy(temp, travelTimes_str);
-    token = strtok(temp, "|");
-    for (int i = 0; i < stationNum - 1 && token != NULL; i++) {
-        trains[new_idx].travelTimes[i] = atoi(token);
-        token = strtok(NULL, "|");
+    parse_pipe(temp, ptrs, MAX_STATIONS);
+    for (int i = 0; i < stationNum - 1 && ptrs[i] != NULL; i++) {
+        trains[new_idx].travelTimes[i] = atoi(ptrs[i]);
     }
 
     if (stationNum > 2) {
         strcpy(temp, stopoverTimes_str);
-        token = strtok(temp, "|");
-        for (int i = 0; i < stationNum - 2 && token != NULL; i++) {
-            trains[new_idx].stopoverTimes[i] = atoi(token);
-            token = strtok(NULL, "|");
+        parse_pipe(temp, ptrs, MAX_STATIONS);
+        for (int i = 0; i < stationNum - 2 && ptrs[i] != NULL; i++) {
+            trains[new_idx].stopoverTimes[i] = atoi(ptrs[i]);
         }
     }
 
